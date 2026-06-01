@@ -1,24 +1,51 @@
-export function getOutcome(home, away) {
-  if (home > away) return "HOME";
-  if (away > home) return "AWAY";
-  return "DRAW";
-}
-
 export function calculatePoints(prediction, fixture) {
-  if (!prediction) return 0;
-  if (fixture.homeScore === null || fixture.awayScore === null) return 0;
+  if (!prediction || fixture.status !== "finished") {
+    return 0;
+  }
 
-  const exact =
-    prediction.home === fixture.homeScore &&
-    prediction.away === fixture.awayScore;
+  const predictedHome = Number(prediction.home);
+  const predictedAway = Number(prediction.away);
 
-  if (exact) return 10;
+  const actualHome = Number(fixture.homeScore);
+  const actualAway = Number(fixture.awayScore);
 
-  const predictedOutcome = getOutcome(prediction.home, prediction.away);
-  const actualOutcome = getOutcome(fixture.homeScore, fixture.awayScore);
+  const predictionIsMissing =
+    Number.isNaN(predictedHome) || Number.isNaN(predictedAway);
 
-  if (actualOutcome === "DRAW" && predictedOutcome === "DRAW") return 7;
-  if (actualOutcome === predictedOutcome) return 5;
+  const resultIsMissing =
+    Number.isNaN(actualHome) || Number.isNaN(actualAway);
+
+  if (predictionIsMissing || resultIsMissing) {
+    return 0;
+  }
+
+  const exactScore =
+    predictedHome === actualHome && predictedAway === actualAway;
+
+  if (exactScore) {
+    return 10;
+  }
+
+  const predictedDraw = predictedHome === predictedAway;
+  const actualDraw = actualHome === actualAway;
+
+  if (predictedDraw && actualDraw) {
+    return 7;
+  }
+
+  const predictedHomeWin = predictedHome > predictedAway;
+  const predictedAwayWin = predictedAway > predictedHome;
+
+  const actualHomeWin = actualHome > actualAway;
+  const actualAwayWin = actualAway > actualHome;
+
+  const correctWinner =
+    (predictedHomeWin && actualHomeWin) ||
+    (predictedAwayWin && actualAwayWin);
+
+  if (correctWinner) {
+    return 5;
+  }
 
   return 0;
 }
