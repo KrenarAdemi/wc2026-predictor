@@ -1,12 +1,12 @@
 export default function Leaderboard({ standings, currentMemberId }) {
   return (
-    <div className="rounded-xl border border-slate-700 bg-[#151c30]">
+    <div className="min-w-0 rounded-xl border border-slate-700 bg-[#151c30]">
       <div className="border-b border-slate-700 px-5 py-4">
         <h3 className="text-lg font-semibold">Leaderboard</h3>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-5 py-3">#</th>

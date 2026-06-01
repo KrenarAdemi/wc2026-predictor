@@ -402,7 +402,7 @@ function continueAsHost() {
 
   return (
     <div className="min-h-screen bg-[#0b1020] text-slate-100">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_1fr]">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr]">
         <Sidebar
             tabs={tabs}
             activeTab={activeTab}
@@ -413,14 +413,14 @@ function continueAsHost() {
             setFirebaseMessage={setFirebaseMessage}
           />
 
-        <main>
+        <main className="min-w-0">
           <Topbar
             activeTab={activeTab}
             roomCode={roomCode}
             setFirebaseMessage={setFirebaseMessage}
           />
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {firebaseMessage && (
               <div className="mb-5 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-200">
                 {firebaseMessage}

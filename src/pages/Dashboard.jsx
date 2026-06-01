@@ -40,7 +40,7 @@ const nextEightFixtures = fixtures
   return (
     <div className="grid gap-6">
         <div
-  className={`rounded-xl border p-4 ${
+  className={`rounded-xl border p-4 text-sm ${
     roomIsActive
       ? "border-emerald-400/30 bg-emerald-400/10"
       : "border-amber-400/30 bg-amber-400/10"
@@ -54,13 +54,13 @@ const nextEightFixtures = fixtures
     {roomIsActive ? "Room active" : "No room yet"}
   </p>
 
-  <p className="mt-1 text-sm text-slate-300">
+  <p className="mt-1 break-words text-sm text-slate-300">
     {roomIsActive
       ? `Invite code: ${roomCode}`
       : "Create or join a room before saving predictions."}
   </p>
 </div>
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="My points"
           value={currentStanding?.points || 0}

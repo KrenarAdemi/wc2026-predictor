@@ -43,8 +43,8 @@ export default function MatchList({
           <h3 className="text-lg font-semibold">Matchday — Group Stage</h3>
 
           {showControls && (
-            <div className="flex flex-wrap gap-2">
-              <button
+            <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+                      <button
                 onClick={() => setActiveFilter("all")}
                 className={`rounded-lg px-3 py-2 text-xs ${
                   activeFilter === "all"
@@ -143,7 +143,7 @@ export default function MatchList({
         return (
           <div
             key={fixture.id}
-            className="grid gap-4 border-b border-slate-700 px-5 py-5 md:grid-cols-[1fr_240px_1fr] md:items-center"
+className="grid gap-4 border-b border-slate-700 px-4 py-5 sm:px-5 md:grid-cols-[1fr_240px_1fr] md:items-center"
           >
             <div>
               <p className="text-xs text-slate-400">
@@ -232,7 +232,7 @@ export default function MatchList({
               )}
             </div>
 
-            <div className="text-right">
+            <div className="text-left md:text-right">
               <span
                 className={`inline-flex rounded-full border px-3 py-1 text-xs ${matchStatusClass}`}
               >
