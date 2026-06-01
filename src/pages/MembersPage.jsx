@@ -7,6 +7,7 @@ export default function MembersPage({
   setJoinForm,
   joinRoom,
   isAdmin,
+  deleteMember,
 }) {
   return (
     <MembersPanel
@@ -16,6 +17,7 @@ export default function MembersPage({
       setJoinForm={setJoinForm}
       joinRoom={joinRoom}
       isAdmin={isAdmin}
+      deleteMember={deleteMember}
     />
   );
 }

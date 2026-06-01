@@ -9,9 +9,15 @@ import {
   orderBy,
   doc,
   setDoc,
+  deleteDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "./firebaseConfig";
+
+function normalizeName(firstName, lastName) {
+  return `${firstName} ${lastName}`.trim().toLowerCase();
+}
 
 export async function createRoomInFirestore(roomName, adminName) {
   const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -52,10 +58,42 @@ export async function findRoomByCode(roomCode) {
   };
 }
 
-export async function addMemberToRoom(roomId, firstName, lastName) {
+export async function findMemberByNameInRoom(roomId, normalizedFullName) {
+  const membersRef = collection(db, "rooms", roomId, "members");
+
+  const membersQuery = query(
+    membersRef,
+    where("normalizedFullName", "==", normalizedFullName)
+  );
+
+  const snapshot = await getDocs(membersQuery);
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const memberDoc = snapshot.docs[0];
+
+  return {
+    id: memberDoc.id,
+    ...memberDoc.data(),
+    isAdmin: false,
+  };
+}
+
+export async function addMemberToRoom(
+  roomId,
+  firstName,
+  lastName,
+  normalizedFullName
+) {
+  const safeNormalizedFullName =
+    normalizedFullName || normalizeName(firstName, lastName);
+
   const memberRef = await addDoc(collection(db, "rooms", roomId, "members"), {
     firstName,
     lastName,
+    normalizedFullName: safeNormalizedFullName,
     joinedAt: serverTimestamp(),
   });
 
@@ -63,6 +101,8 @@ export async function addMemberToRoom(roomId, firstName, lastName) {
     id: memberRef.id,
     firstName,
     lastName,
+    normalizedFullName: safeNormalizedFullName,
+    isAdmin: false,
   };
 }
 
@@ -79,6 +119,31 @@ export function subscribeToRoomMembers(roomId, callback) {
 
     callback(members);
   });
+}
+
+export async function deleteMemberFromRoom(roomId, memberId) {
+  const batch = writeBatch(db);
+
+  const predictionsRef = collection(db, "rooms", roomId, "predictions");
+  const predictionsQuery = query(
+    predictionsRef,
+    where("memberId", "==", memberId)
+  );
+
+  const predictionsSnapshot = await getDocs(predictionsQuery);
+
+  predictionsSnapshot.docs.forEach((predictionDoc) => {
+    batch.delete(predictionDoc.ref);
+  });
+
+  const memberRef = doc(db, "rooms", roomId, "members", memberId);
+  batch.delete(memberRef);
+
+  await batch.commit();
+
+  return {
+    deletedMemberId: memberId,
+  };
 }
 
 export async function savePredictionToFirestore(

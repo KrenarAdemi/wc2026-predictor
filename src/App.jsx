@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 
-
 import Dashboard from "./pages/Dashboard";
 import FixturesPage from "./pages/FixturesPage";
 import StandingsPage from "./pages/StandingsPage";
@@ -28,11 +27,21 @@ import {
   subscribeToRoomPredictions,
   subscribeToOfficialMatches,
   subscribeToOfficialResults,
+  findMemberByNameInRoom,
+  deleteMemberFromRoom,
 } from "./firebase/firestoreService";
 
 const ADMIN_EMAIL = "krenar.ademi3@gmail.com";
+
 const HOST_SESSION_STORAGE_KEY = "wc2026PredictorHostSession";
 const MEMBER_SESSION_STORAGE_KEY = "wc2026PredictorMemberSession";
+
+const ADMIN_MEMBER = {
+  id: "u1",
+  firstName: "Administrator",
+  lastName: "Ademi",
+  isAdmin: true,
+};
 
 function saveHostSession(session) {
   localStorage.setItem(HOST_SESSION_STORAGE_KEY, JSON.stringify(session));
@@ -46,6 +55,7 @@ function loadHostSession() {
   try {
     return JSON.parse(savedSession);
   } catch {
+    localStorage.removeItem(HOST_SESSION_STORAGE_KEY);
     return null;
   }
 }
@@ -62,8 +72,17 @@ function loadMemberSession() {
   try {
     return JSON.parse(savedSession);
   } catch {
+    localStorage.removeItem(MEMBER_SESSION_STORAGE_KEY);
     return null;
   }
+}
+
+function clearMemberSession() {
+  localStorage.removeItem(MEMBER_SESSION_STORAGE_KEY);
+}
+
+function normalizeName(firstName, lastName) {
+  return `${firstName} ${lastName}`.trim().toLowerCase();
 }
 
 export default function App() {
@@ -72,19 +91,13 @@ export default function App() {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [firebaseMessage, setFirebaseMessage] = useState("");
   const [hasEnteredApp, setHasEnteredApp] = useState(false);
+
   const [officialMatches, setOfficialMatches] = useState([]);
   const [officialResults, setOfficialResults] = useState({});
 
-  const [members, setMembers] = useState([
-    {
-      id: "u1",
-      firstName: "Krenar",
-      lastName: "Ademi",
-      isAdmin: true,
-    },
-  ]);
-
+  const [members, setMembers] = useState([ADMIN_MEMBER]);
   const [currentMemberId, setCurrentMemberId] = useState("u1");
+
   const [predictions, setPredictions] = useState({});
   const [draftScores, setDraftScores] = useState({});
 
@@ -93,24 +106,33 @@ export default function App() {
     lastName: "",
     roomCode: "",
   });
+
   useEffect(() => {
-  const savedHostSession = loadHostSession();
-  const savedMemberSession = loadMemberSession();
+    const savedMemberSession = loadMemberSession();
+    const savedHostSession = loadHostSession();
 
-  const savedSession = savedMemberSession || savedHostSession;
+    if (savedMemberSession?.currentRoom && savedMemberSession?.currentMemberId) {
+      setCurrentRoom(savedMemberSession.currentRoom);
+      setRoomCode(savedMemberSession.roomCode || savedMemberSession.currentRoom.roomCode || "");
+      setCurrentMemberId(savedMemberSession.currentMemberId);
+      setActiveTab("dashboard");
+      setHasEnteredApp(true);
+      setFirebaseMessage("Welcome back.");
+      return;
+    }
 
-  if (!savedSession) return;
+    if (savedHostSession?.currentRoom && savedHostSession?.roomCode) {
+      setCurrentRoom(savedHostSession.currentRoom);
+      setRoomCode(savedHostSession.roomCode);
+      setCurrentMemberId("u1");
+      setActiveTab("dashboard");
+      setHasEnteredApp(true);
+      setFirebaseMessage(`Welcome back, host. Current room: ${savedHostSession.roomCode}`);
+      return;
+    }
 
-  setCurrentRoom(savedSession.currentRoom || null);
-  setRoomCode(savedSession.roomCode || "");
-
-  if (savedSession.currentMemberId) {
-    setCurrentMemberId(savedSession.currentMemberId);
-  }
-
-  // Always show login page first.
-  setHasEnteredApp(false);
-}, []);
+    setHasEnteredApp(false);
+  }, []);
 
   const currentMember = members.find((member) => member.id === currentMemberId);
   const isAdmin = currentMember?.isAdmin;
@@ -118,45 +140,32 @@ export default function App() {
   const fixtures = useMemo(() => {
     return mapOfficialMatchesToFixtures(officialMatches, officialResults);
   }, [officialMatches, officialResults]);
-  const fixturesAreLoading = officialMatches.length === 0;
 
+  const fixturesAreLoading = officialMatches.length === 0;
 
   useEffect(() => {
     if (!currentRoom?.id) return;
 
     const unsubscribe = subscribeToRoomMembers(currentRoom.id, (firebaseMembers) => {
-      const adminMember = members.find((member) => member.isAdmin);
+      const membersWithoutAdmin = firebaseMembers.filter(
+        (member) => member.id !== ADMIN_MEMBER.id
+      );
 
-      const updatedMembers = adminMember
-        ? [adminMember, ...firebaseMembers]
-        : firebaseMembers;
-
-      setMembers(updatedMembers);
+      setMembers([ADMIN_MEMBER, ...membersWithoutAdmin]);
     });
 
     return () => unsubscribe();
   }, [currentRoom?.id]);
 
   useEffect(() => {
-  if (!currentRoom?.id) return;
+    if (!currentRoom?.id) return;
 
-  const unsubscribe = subscribeToRoomMembers(currentRoom.id, (firebaseMembers) => {
-    const adminMember = {
-      id: "u1",
-      firstName: "Krenar",
-      lastName: "Ademi",
-      isAdmin: true,
-    };
+    const unsubscribe = subscribeToRoomPredictions(currentRoom.id, (firebasePredictions) => {
+      setPredictions(firebasePredictions);
+    });
 
-    const membersWithoutAdmin = firebaseMembers.filter(
-      (member) => member.id !== "u1"
-    );
-
-    setMembers([adminMember, ...membersWithoutAdmin]);
-  });
-
-  return () => unsubscribe();
-}, [currentRoom?.id]);
+    return () => unsubscribe();
+  }, [currentRoom?.id]);
 
   useEffect(() => {
     const unsubscribe = subscribeToOfficialMatches((matches) => {
@@ -216,6 +225,16 @@ export default function App() {
 
       setCurrentRoom(room);
       setRoomCode(room.roomCode);
+      setCurrentMemberId("u1");
+      setActiveTab("dashboard");
+      setHasEnteredApp(true);
+
+      saveHostSession({
+        currentRoom: room,
+        roomCode: room.roomCode,
+        currentMemberId: "u1",
+      });
+
       setFirebaseMessage(`Room created. Code: ${room.roomCode}`);
     } catch (error) {
       console.error(error);
@@ -224,170 +243,234 @@ export default function App() {
   }
 
   async function joinRoom() {
-  if (!joinForm.firstName || !joinForm.lastName || !joinForm.roomCode) {
-    setFirebaseMessage("Enter first name, last name, and room code.");
-    return;
-  }
+    const firstName = joinForm.firstName.trim();
+    const lastName = joinForm.lastName.trim();
+    const enteredRoomCode = joinForm.roomCode.trim();
 
-  try {
-    const room = await findRoomByCode(joinForm.roomCode);
-
-    if (!room) {
-      setFirebaseMessage("Room not found. Check the room code.");
+    if (!firstName || !lastName || !enteredRoomCode) {
+      setFirebaseMessage("Enter first name, last name, and room code.");
       return;
     }
 
-    const newMember = await addMemberToRoom(
-      room.id,
-      joinForm.firstName,
-      joinForm.lastName
-    );
+    try {
+      const room = await findRoomByCode(enteredRoomCode);
 
-    const joinedMember = {
-      id: newMember.id,
-      firstName: newMember.firstName,
-      lastName: newMember.lastName,
-      isAdmin: false,
-    };
+      if (!room) {
+        setFirebaseMessage("Room not found. Check the room code.");
+        return;
+      }
 
-    setCurrentRoom(room);
-    setRoomCode(room.roomCode);
+      const normalizedFullName = normalizeName(firstName, lastName);
 
-    setMembers((currentMembers) => {
-      const withoutDuplicate = currentMembers.filter(
-        (member) => member.id !== joinedMember.id
+      const existingMember = await findMemberByNameInRoom(
+        room.id,
+        normalizedFullName
       );
 
-      return [...withoutDuplicate, joinedMember];
-    });
+      const member = existingMember
+        ? existingMember
+        : await addMemberToRoom(room.id, firstName, lastName, normalizedFullName);
 
-    setCurrentMemberId(joinedMember.id);
+      const joinedMember = {
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        isAdmin: false,
+      };
 
-    saveMemberSession({
-      currentRoom: room,
-      roomCode: room.roomCode,
-      currentMemberId: joinedMember.id,
-    });
+      setCurrentRoom(room);
+      setRoomCode(room.roomCode);
+      setCurrentMemberId(joinedMember.id);
 
-    setJoinForm({
-      firstName: "",
-      lastName: "",
-      roomCode: "",
-    });
+      setMembers((currentMembers) => {
+        const withoutDuplicate = currentMembers.filter(
+          (currentMember) => currentMember.id !== joinedMember.id
+        );
 
-    setFirebaseMessage("Joined room successfully.");
-    setActiveTab("dashboard");
-    setHasEnteredApp(true);
-  } catch (error) {
-    console.error(error);
-    setFirebaseMessage("Could not join room. Check Firebase rules.");
+        return [...withoutDuplicate, joinedMember];
+      });
+
+      saveMemberSession({
+        currentRoom: room,
+        roomCode: room.roomCode,
+        currentMemberId: joinedMember.id,
+        firstName: joinedMember.firstName,
+        lastName: joinedMember.lastName,
+      });
+
+      setJoinForm({
+        firstName: "",
+        lastName: "",
+        roomCode: "",
+      });
+
+      setFirebaseMessage(
+        existingMember ? "Welcome back. You are logged in again." : "Joined room successfully."
+      );
+
+      setActiveTab("dashboard");
+      setHasEnteredApp(true);
+    } catch (error) {
+      console.error(error);
+      setFirebaseMessage("Could not join room. Check Firebase rules.");
+    }
   }
-}
+
+  async function deleteMember(memberId) {
+    if (!isAdmin) return;
+
+    if (memberId === "u1") {
+      setFirebaseMessage("You cannot delete the host/admin.");
+      return;
+    }
+
+    if (!currentRoom?.id) {
+      setFirebaseMessage("No active room found.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this member? Their predictions should also be removed from the room."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await deleteMemberFromRoom(currentRoom.id, memberId);
+
+      setMembers((currentMembers) =>
+        currentMembers.filter((member) => member.id !== memberId)
+      );
+
+      setPredictions((currentPredictions) => {
+        const updatedPredictions = { ...currentPredictions };
+
+        Object.keys(updatedPredictions).forEach((predictionKey) => {
+          if (predictionKey.startsWith(`${memberId}:`)) {
+            delete updatedPredictions[predictionKey];
+          }
+        });
+
+        return updatedPredictions;
+      });
+
+      if (currentMemberId === memberId) {
+        clearMemberSession();
+        setCurrentMemberId("u1");
+        setHasEnteredApp(false);
+      }
+
+      setFirebaseMessage("Member deleted.");
+    } catch (error) {
+      console.error(error);
+      setFirebaseMessage("Could not delete member. Check Firebase rules.");
+    }
+  }
 
   async function savePrediction(fixtureId) {
-  const fixture = fixtures.find((item) => item.id === fixtureId);
+    const fixture = fixtures.find((item) => item.id === fixtureId);
 
-  if (!fixture) {
-    setFirebaseMessage("Fixture not found.");
-    console.log("Fixture missing.");
-    return;
-  }
+    if (!fixture) {
+      setFirebaseMessage("Fixture not found.");
+      return;
+    }
 
-  if (isLocked(fixture.kickoff)) {
-    setFirebaseMessage("This match is locked. You can no longer predict it.");
-    console.log("Prediction locked.");
-    return;
-  }
+    if (isLocked(fixture.kickoff)) {
+      setFirebaseMessage("This match is locked. You can no longer predict it.");
+      return;
+    }
 
-  const draft = draftScores[fixtureId];
+    const draft = draftScores[fixtureId];
 
-  if (!draft || draft.home === "" || draft.away === "") {
-    setFirebaseMessage("Enter both home and away scores.");
-    console.log("Missing score input.");
-    return;
-  }
+    if (!draft || draft.home === "" || draft.away === "") {
+      setFirebaseMessage("Enter both home and away scores.");
+      return;
+    }
 
-  const homeScore = Number(draft.home);
-  const awayScore = Number(draft.away);
+    const homeScore = Number(draft.home);
+    const awayScore = Number(draft.away);
 
-  const scoresAreInvalid =
-    !Number.isInteger(homeScore) ||
-    !Number.isInteger(awayScore) ||
-    homeScore < 0 ||
-    awayScore < 0 ||
-    homeScore > 20 ||
-    awayScore > 20;
+    const scoresAreInvalid =
+      !Number.isInteger(homeScore) ||
+      !Number.isInteger(awayScore) ||
+      homeScore < 0 ||
+      awayScore < 0 ||
+      homeScore > 20 ||
+      awayScore > 20;
 
-  if (scoresAreInvalid) {
-    setFirebaseMessage("Enter valid whole-number scores between 0 and 20.");
-    console.log("Invalid scores:", homeScore, awayScore);
-    return;
-  }
+    if (scoresAreInvalid) {
+      setFirebaseMessage("Enter valid whole-number scores between 0 and 20.");
+      return;
+    }
 
-  if (!currentRoom?.id) {
-    setFirebaseMessage("Create or join a room first before saving predictions.");
-    console.log("No currentRoom found.");
-    return;
-  }
+    if (!currentRoom?.id) {
+      setFirebaseMessage("Create or join a room first before saving predictions.");
+      return;
+    }
 
-  const savedPrediction = {
-  home: homeScore,
-  away: awayScore,
-};
+    if (!currentMemberId) {
+      setFirebaseMessage("No member selected.");
+      return;
+    }
 
-const alreadyPredicted = Boolean(
-  predictions[`${currentMemberId}:${fixtureId}`]
-);
+    const savedPrediction = {
+      home: homeScore,
+      away: awayScore,
+    };
 
-try {
-    await savePredictionToFirestore(
-      currentRoom.id,
-      currentMemberId,
-      fixtureId,
-      savedPrediction.home,
-      savedPrediction.away
+    const alreadyPredicted = Boolean(
+      predictions[`${currentMemberId}:${fixtureId}`]
     );
 
-    setPredictions((currentPredictions) => ({
-      ...currentPredictions,
-      [`${currentMemberId}:${fixtureId}`]: savedPrediction,
-    }));
+    try {
+      await savePredictionToFirestore(
+        currentRoom.id,
+        currentMemberId,
+        fixtureId,
+        savedPrediction.home,
+        savedPrediction.away
+      );
 
-    setFirebaseMessage(
-      alreadyPredicted ? "Prediction updated." : "Prediction saved."
-    );
+      setPredictions((currentPredictions) => ({
+        ...currentPredictions,
+        [`${currentMemberId}:${fixtureId}`]: savedPrediction,
+      }));
 
-console.log("Prediction saved to Firebase.");
-  } catch (error) {
-    console.error("Prediction save failed:", error);
-    setFirebaseMessage("Prediction could not be saved.");
+      setFirebaseMessage(
+        alreadyPredicted ? "Prediction updated." : "Prediction saved."
+      );
+    } catch (error) {
+      console.error("Prediction save failed:", error);
+      setFirebaseMessage("Prediction could not be saved.");
+    }
   }
-}
-function continueAsHost() {
-  const savedHostSession = loadHostSession();
 
-  if (savedHostSession?.currentRoom && savedHostSession?.roomCode) {
-    setCurrentRoom(savedHostSession.currentRoom);
-    setRoomCode(savedHostSession.roomCode);
+  function continueAsHost() {
+    const savedHostSession = loadHostSession();
+
+    if (savedHostSession?.currentRoom && savedHostSession?.roomCode) {
+      setCurrentRoom(savedHostSession.currentRoom);
+      setRoomCode(savedHostSession.roomCode);
+      setCurrentMemberId("u1");
+      setActiveTab("dashboard");
+      setHasEnteredApp(true);
+
+      setFirebaseMessage(
+        `Welcome back, host. Current room: ${savedHostSession.roomCode}`
+      );
+
+      return;
+    }
+
     setCurrentMemberId("u1");
-    setActiveTab("dashboard");
+    setActiveTab("admin");
     setHasEnteredApp(true);
-
-    setFirebaseMessage(
-      `Welcome back, host. Current room: ${savedHostSession.roomCode}`
-    );
-
-    return;
+    setFirebaseMessage("Create your room from the Admin panel.");
   }
-
-  setCurrentMemberId("u1");
-  setActiveTab("admin");
-  setHasEnteredApp(true);
-  setFirebaseMessage("Create your room from the Admin panel.");
-}
 
   const savedHostSession = loadHostSession();
   const savedHostRoomCode = savedHostSession?.roomCode || roomCode;
+
   if (!hasEnteredApp) {
     return (
       <JoinRoomPage
@@ -402,16 +485,16 @@ function continueAsHost() {
 
   return (
     <div className="min-h-screen bg-[#0b1020] text-slate-100">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr]">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]">
         <Sidebar
-            tabs={tabs}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            isAdmin={isAdmin}
-            currentMember={currentMember}
-            roomCode={roomCode}
-            setFirebaseMessage={setFirebaseMessage}
-          />
+          tabs={tabs}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isAdmin={isAdmin}
+          currentMember={currentMember}
+          roomCode={roomCode}
+          setFirebaseMessage={setFirebaseMessage}
+        />
 
         <main className="min-w-0">
           <Topbar
@@ -463,15 +546,16 @@ function continueAsHost() {
                 setJoinForm={setJoinForm}
                 joinRoom={joinRoom}
                 isAdmin={isAdmin}
+                deleteMember={deleteMember}
               />
             )}
 
             {activeTab === "standings" && (
-                <StandingsPage
-                  standings={standings}
-                  currentMemberId={currentMemberId}
-                />
-              )}
+              <StandingsPage
+                standings={standings}
+                currentMemberId={currentMemberId}
+              />
+            )}
 
             {activeTab === "nations" && <NationsPage nations={nations} />}
 
@@ -491,4 +575,3 @@ function continueAsHost() {
     </div>
   );
 }
-

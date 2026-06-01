@@ -5,6 +5,7 @@ export default function MembersPanel({
   setJoinForm,
   joinRoom,
   isAdmin,
+  deleteMember,
 }) {
   const canJoinRoom =
     joinForm.firstName.trim() &&
@@ -27,37 +28,44 @@ export default function MembersPanel({
         <div className="grid gap-2">
           {members.map((member, index) => {
             const isCurrentUser = currentMemberId === member.id;
+            const canDeleteMember = isAdmin && !member.isAdmin;
 
             return (
               <div
                 key={member.id}
-                className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                className={`flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
                   isCurrentUser
                     ? "border border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
                     : "bg-white/5"
                 }`}
               >
-                <span>
-                  {index + 1}. {member.firstName} {member.lastName}
-                </span>
+                <div>
+                  <p className="font-medium">
+                    {index + 1}. {member.firstName} {member.lastName}
+                  </p>
 
-                <span className="flex items-center gap-2">
                   {member.isAdmin && (
-                    <span className="text-xs text-[#f5d36b]">Admin</span>
+                    <p className="mt-1 text-xs text-[#f5d36b]">Admin</p>
                   )}
 
                   {isCurrentUser && (
-                    <span className="rounded bg-cyan-400/20 px-2 py-1 text-xs text-cyan-300">
-                      You
-                    </span>
+                    <p className="mt-1 text-xs text-cyan-300">You</p>
                   )}
 
-                  {!isCurrentUser && (
-                    <span className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-400">
-                      View only
-                    </span>
+                  {!isCurrentUser && !member.isAdmin && (
+                    <p className="mt-1 text-xs text-slate-400">View only</p>
                   )}
-                </span>
+                </div>
+
+                {canDeleteMember && (
+                  <button
+                    type="button"
+                    onClick={() => deleteMember(member.id)}
+                    className="w-full rounded-lg border border-red-400/40 px-3 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/10 sm:w-auto"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             );
           })}
@@ -72,7 +80,8 @@ export default function MembersPanel({
             </h3>
 
             <p className="mt-2 text-sm text-slate-300">
-              You can view all members, but you cannot act as another player.
+              You can delete members from this room, but you cannot act as
+              another player.
             </p>
           </div>
         ) : hasJoinedRoom ? (
@@ -131,6 +140,7 @@ export default function MembersPanel({
               />
 
               <button
+                type="button"
                 onClick={joinRoom}
                 disabled={!canJoinRoom}
                 className="rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
