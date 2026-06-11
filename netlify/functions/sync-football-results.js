@@ -17,6 +17,8 @@ export const handler = async () => {
   const token = process.env.FOOTBALL_DATA_TOKEN;
 
   if (!token) {
+    console.error("Missing FOOTBALL_DATA_TOKEN");
+
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -29,6 +31,8 @@ export const handler = async () => {
     "https://api.football-data.org/v4/competitions/WC/matches?season=2026";
 
   try {
+    console.log("Starting football results sync...");
+
     const response = await fetch(url, {
       headers: {
         "X-Auth-Token": token,
@@ -38,6 +42,8 @@ export const handler = async () => {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error("Football-data API error:", data);
+
       return {
         statusCode: response.status,
         headers: {
@@ -51,6 +57,7 @@ export const handler = async () => {
 
     let savedMatches = 0;
     let savedResults = 0;
+    let finishedMatchesFound = 0;
 
     for (const match of matches) {
       const matchId = String(match.id);
@@ -60,6 +67,11 @@ export const handler = async () => {
 
       const fullTimeHome = match.score?.fullTime?.home ?? null;
       const fullTimeAway = match.score?.fullTime?.away ?? null;
+
+      const isFinished =
+        match.status === "FINISHED" &&
+        fullTimeHome !== null &&
+        fullTimeAway !== null;
 
       const officialMatch = {
         apiMatchId: matchId,
@@ -73,8 +85,14 @@ export const handler = async () => {
         awayTeam,
         homeTeamCode: match.homeTeam?.tla || null,
         awayTeamCode: match.awayTeam?.tla || null,
+
+        // Important result fields
         fullTimeHome,
         fullTimeAway,
+        homeScore: isFinished ? Number(fullTimeHome) : null,
+        awayScore: isFinished ? Number(fullTimeAway) : null,
+        isFinished,
+
         lastSyncedAt: serverTimestamp(),
       };
 
@@ -84,20 +102,24 @@ export const handler = async () => {
 
       savedMatches++;
 
-      if (
-        match.status === "FINISHED" &&
-        fullTimeHome !== null &&
-        fullTimeAway !== null
-      ) {
+      if (isFinished) {
+        finishedMatchesFound++;
+
+        console.log(
+          `Finished match found: ${homeTeam} ${fullTimeHome}-${fullTimeAway} ${awayTeam}`
+        );
+
         await setDoc(
           doc(db, "officialResults", matchId),
           {
             apiMatchId: matchId,
             status: "finished",
-            homeScore: Number(fullTimeHome),
-            awayScore: Number(fullTimeAway),
             homeTeam,
             awayTeam,
+            homeScore: Number(fullTimeHome),
+            awayScore: Number(fullTimeAway),
+            fullTimeHome: Number(fullTimeHome),
+            fullTimeAway: Number(fullTimeAway),
             updatedAt: serverTimestamp(),
           },
           { merge: true }
@@ -106,6 +128,13 @@ export const handler = async () => {
         savedResults++;
       }
     }
+
+    console.log("Football sync completed:", {
+      totalFromApi: matches.length,
+      savedMatches,
+      finishedMatchesFound,
+      savedResults,
+    });
 
     return {
       statusCode: 200,
@@ -116,10 +145,13 @@ export const handler = async () => {
         message: "Football data synced to Firestore.",
         totalFromApi: matches.length,
         savedMatches,
+        finishedMatchesFound,
         savedResults,
       }),
     };
   } catch (error) {
+    console.error("Sync failed:", error);
+
     return {
       statusCode: 500,
       body: JSON.stringify({
