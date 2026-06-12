@@ -183,36 +183,67 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const standings = useMemo(() => {
-    return members
-      .map((member) => {
-        let points = 0;
-        let exact = 0;
-        let correct = 0;
-        let guesses = 0;
+  function getPredictionForFixture(predictions, memberId, fixture) {
+  const possibleFixtureIds = [
+    fixture.id,
+    fixture.apiMatchId,
+    fixture.matchId,
+    fixture.officialMatchId,
+  ]
+    .filter(Boolean)
+    .map(String);
 
-        fixtures.forEach((fixture) => {
-          const prediction = predictions[`${member.id}:${fixture.id}`];
+  for (const fixtureId of possibleFixtureIds) {
+    const prediction = predictions[`${memberId}:${fixtureId}`];
 
-          if (prediction) guesses++;
+    if (prediction) {
+      return prediction;
+    }
+  }
 
-          const earned = calculatePoints(prediction, fixture);
-          points += earned;
+  return null;
+}
 
-          if (earned === 10) exact++;
-          if ([5, 7, 10].includes(earned)) correct++;
-        });
+const standings = useMemo(() => {
+  return members
+    .map((member) => {
+      let points = 0;
+      let exact = 0;
+      let correct = 0;
+      let guesses = 0;
 
-        return {
-          ...member,
-          points,
-          exact,
-          correct,
-          guesses,
-        };
-      })
-      .sort((a, b) => b.points - a.points || b.exact - a.exact);
-  }, [members, fixtures, predictions]);
+      fixtures.forEach((fixture) => {
+        const prediction = getPredictionForFixture(
+          predictions,
+          member.id,
+          fixture
+        );
+
+        if (prediction) guesses++;
+
+        const earned = calculatePoints(prediction, fixture);
+        points += earned;
+
+        if (earned === 10) exact++;
+        if ([5, 7, 10].includes(earned)) correct++;
+      });
+
+      return {
+        ...member,
+        points,
+        exact,
+        correct,
+        guesses,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.exact - a.exact ||
+        b.correct - a.correct ||
+        b.guesses - a.guesses
+    );
+}, [members, fixtures, predictions]);
 
   async function createFirebaseRoom() {
     if (!isAdmin) return;
