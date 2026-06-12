@@ -6,13 +6,38 @@ export function mapOfficialMatchesToFixtures(officialMatches, officialResults) {
   }
 
   return officialMatches.map((match, index) => {
-    const result = officialResults[match.id];
+    const matchId = String(match.id || match.apiMatchId);
+
+    const result =
+      officialResults[matchId] ||
+      officialResults[Number(matchId)] ||
+      Object.values(officialResults).find(
+        (item) => String(item.apiMatchId) === matchId
+      );
+
+    const homeScore =
+      result?.homeScore ??
+      result?.fullTimeHome ??
+      match.homeScore ??
+      match.fullTimeHome ??
+      null;
+
+    const awayScore =
+      result?.awayScore ??
+      result?.fullTimeAway ??
+      match.awayScore ??
+      match.fullTimeAway ??
+      null;
 
     const isFinished =
-      match.status === "FINISHED" || result?.status === "finished";
+      String(match.status || "").toUpperCase() === "FINISHED" ||
+      String(result?.status || "").toLowerCase() === "finished" ||
+      match.isFinished === true ||
+      (homeScore !== null && awayScore !== null);
 
     return {
-      id: match.id,
+      id: matchId,
+      apiMatchId: matchId,
       matchNo: index + 1,
       group: match.group || match.stage || "World Cup",
       round: match.matchday || 1,
@@ -21,8 +46,10 @@ export function mapOfficialMatchesToFixtures(officialMatches, officialResults) {
       kickoff: match.utcDate,
       city: "TBD",
       status: isFinished ? "finished" : "scheduled",
-      homeScore: result?.homeScore ?? match.fullTimeHome ?? null,
-      awayScore: result?.awayScore ?? match.fullTimeAway ?? null,
+      homeScore,
+      awayScore,
+      fullTimeHome: homeScore,
+      fullTimeAway: awayScore,
     };
   });
 }
