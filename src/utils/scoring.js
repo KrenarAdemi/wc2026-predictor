@@ -1,13 +1,33 @@
 export function calculatePoints(prediction, fixture) {
-  if (!prediction || fixture.status !== "finished") {
+  if (!prediction || !fixture) {
+    return 0;
+  }
+
+  const status = String(fixture.status || "").toLowerCase();
+
+  const isFinished =
+    status === "finished" ||
+    status === "fin" ||
+    fixture.isFinished === true ||
+    fixture.homeScore !== null ||
+    fixture.awayScore !== null ||
+    fixture.fullTimeHome !== null ||
+    fixture.fullTimeAway !== null;
+
+  if (!isFinished) {
     return 0;
   }
 
   const predictedHome = Number(prediction.home);
   const predictedAway = Number(prediction.away);
 
-  const actualHome = Number(fixture.homeScore);
-  const actualAway = Number(fixture.awayScore);
+  const actualHome = Number(
+    fixture.homeScore ?? fixture.fullTimeHome ?? fixture.score?.fullTime?.home
+  );
+
+  const actualAway = Number(
+    fixture.awayScore ?? fixture.fullTimeAway ?? fixture.score?.fullTime?.away
+  );
 
   const predictionIsMissing =
     Number.isNaN(predictedHome) || Number.isNaN(predictedAway);
