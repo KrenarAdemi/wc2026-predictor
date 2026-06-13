@@ -11,3 +11,6 @@
 
 [functions]
   directory = "netlify/functions"
+
+[functions."sync-football-results"]
+  schedule = "*/5 * * * *"
