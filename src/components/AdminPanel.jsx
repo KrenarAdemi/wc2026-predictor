@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { saveOfficialResultManually } from "../firebase/firestoreService";
 
 export default function AdminPanel({
   createFirebaseRoom,
@@ -7,6 +6,7 @@ export default function AdminPanel({
   roomCode,
   currentRoom,
   fixtures = [],
+  saveManualResult,
 }) {
   const roomAlreadyCreated = Boolean(currentRoom?.id);
 
@@ -28,20 +28,20 @@ export default function AdminPanel({
       return;
     }
 
+    if (!saveManualResult) {
+      setMessage("Admin save function is not connected.");
+      return;
+    }
+
     try {
-      await saveOfficialResultManually(
-        selectedFixtureId,
-        homeScore,
-        awayScore,
-        adminEmail
-      );
+      await saveManualResult(selectedFixtureId, homeScore, awayScore);
 
       setMessage("Final result saved successfully.");
       setHomeScore("");
       setAwayScore("");
     } catch (error) {
       console.error(error);
-      setMessage("Result could not be saved. Firestore limit may be blocking writes.");
+      setMessage("Result could not be saved. Check Firestore rules.");
     }
   }
 
@@ -50,9 +50,7 @@ export default function AdminPanel({
       <div className="rounded-xl border border-slate-700 bg-[#151c30] p-5">
         <h3 className="mb-2 text-lg font-semibold">Admin Panel</h3>
 
-        <p className="text-sm text-slate-400">
-          Admin email: {adminEmail}
-        </p>
+        <p className="text-sm text-slate-400">Admin email: {adminEmail}</p>
 
         {roomAlreadyCreated && (
           <div className="mt-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4">
@@ -68,6 +66,7 @@ export default function AdminPanel({
         )}
 
         <button
+          type="button"
           onClick={createFirebaseRoom}
           disabled={roomAlreadyCreated}
           className="mt-4 rounded-xl bg-[#f5d36b] px-4 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
@@ -102,6 +101,7 @@ export default function AdminPanel({
             <input
               type="number"
               min="0"
+              max="20"
               placeholder="Home score"
               value={homeScore}
               onChange={(event) => setHomeScore(event.target.value)}
@@ -111,6 +111,7 @@ export default function AdminPanel({
             <input
               type="number"
               min="0"
+              max="20"
               placeholder="Away score"
               value={awayScore}
               onChange={(event) => setAwayScore(event.target.value)}

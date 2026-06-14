@@ -6,6 +6,7 @@ export default function AdminPage({
   roomCode,
   currentRoom,
   fixtures = [],
+  saveManualResult,
 }) {
   return (
     <AdminPanel
@@ -14,6 +15,7 @@ export default function AdminPage({
       roomCode={roomCode}
       currentRoom={currentRoom}
       fixtures={fixtures}
+      saveManualResult={saveManualResult}
     />
   );
 }

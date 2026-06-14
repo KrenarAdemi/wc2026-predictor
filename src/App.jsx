@@ -29,6 +29,7 @@ import {
   subscribeToOfficialResults,
   findMemberByNameInRoom,
   deleteMemberFromRoom,
+  saveOfficialResultManually,
 } from "./firebase/firestoreService";
 
 const ADMIN_EMAIL = "krenar.ademi3@gmail.com";
@@ -113,7 +114,11 @@ export default function App() {
 
     if (savedMemberSession?.currentRoom && savedMemberSession?.currentMemberId) {
       setCurrentRoom(savedMemberSession.currentRoom);
-      setRoomCode(savedMemberSession.roomCode || savedMemberSession.currentRoom.roomCode || "");
+      setRoomCode(
+        savedMemberSession.roomCode ||
+          savedMemberSession.currentRoom.roomCode ||
+          ""
+      );
       setCurrentMemberId(savedMemberSession.currentMemberId);
       setActiveTab("dashboard");
       setHasEnteredApp(true);
@@ -127,7 +132,9 @@ export default function App() {
       setCurrentMemberId("u1");
       setActiveTab("dashboard");
       setHasEnteredApp(true);
-      setFirebaseMessage(`Welcome back, host. Current room: ${savedHostSession.roomCode}`);
+      setFirebaseMessage(
+        `Welcome back, host. Current room: ${savedHostSession.roomCode}`
+      );
       return;
     }
 
@@ -146,13 +153,16 @@ export default function App() {
   useEffect(() => {
     if (!currentRoom?.id) return;
 
-    const unsubscribe = subscribeToRoomMembers(currentRoom.id, (firebaseMembers) => {
-      const membersWithoutAdmin = firebaseMembers.filter(
-        (member) => member.id !== ADMIN_MEMBER.id
-      );
+    const unsubscribe = subscribeToRoomMembers(
+      currentRoom.id,
+      (firebaseMembers) => {
+        const membersWithoutAdmin = firebaseMembers.filter(
+          (member) => member.id !== ADMIN_MEMBER.id
+        );
 
-      setMembers([ADMIN_MEMBER, ...membersWithoutAdmin]);
-    });
+        setMembers([ADMIN_MEMBER, ...membersWithoutAdmin]);
+      }
+    );
 
     return () => unsubscribe();
   }, [currentRoom?.id]);
@@ -160,9 +170,12 @@ export default function App() {
   useEffect(() => {
     if (!currentRoom?.id) return;
 
-    const unsubscribe = subscribeToRoomPredictions(currentRoom.id, (firebasePredictions) => {
-      setPredictions(firebasePredictions);
-    });
+    const unsubscribe = subscribeToRoomPredictions(
+      currentRoom.id,
+      (firebasePredictions) => {
+        setPredictions(firebasePredictions);
+      }
+    );
 
     return () => unsubscribe();
   }, [currentRoom?.id]);
@@ -184,66 +197,66 @@ export default function App() {
   }, []);
 
   function getPredictionForFixture(predictions, memberId, fixture) {
-  const possibleFixtureIds = [
-    fixture.id,
-    fixture.apiMatchId,
-    fixture.matchId,
-    fixture.officialMatchId,
-  ]
-    .filter(Boolean)
-    .map(String);
+    const possibleFixtureIds = [
+      fixture.id,
+      fixture.apiMatchId,
+      fixture.matchId,
+      fixture.officialMatchId,
+    ]
+      .filter(Boolean)
+      .map(String);
 
-  for (const fixtureId of possibleFixtureIds) {
-    const prediction = predictions[`${memberId}:${fixtureId}`];
+    for (const fixtureId of possibleFixtureIds) {
+      const prediction = predictions[`${memberId}:${fixtureId}`];
 
-    if (prediction) {
-      return prediction;
+      if (prediction) {
+        return prediction;
+      }
     }
+
+    return null;
   }
 
-  return null;
-}
+  const standings = useMemo(() => {
+    return members
+      .map((member) => {
+        let points = 0;
+        let exact = 0;
+        let correct = 0;
+        let guesses = 0;
 
-const standings = useMemo(() => {
-  return members
-    .map((member) => {
-      let points = 0;
-      let exact = 0;
-      let correct = 0;
-      let guesses = 0;
+        fixtures.forEach((fixture) => {
+          const prediction = getPredictionForFixture(
+            predictions,
+            member.id,
+            fixture
+          );
 
-      fixtures.forEach((fixture) => {
-        const prediction = getPredictionForFixture(
-          predictions,
-          member.id,
-          fixture
-        );
+          if (prediction) guesses++;
 
-        if (prediction) guesses++;
+          const earned = calculatePoints(prediction, fixture);
+          points += earned;
 
-        const earned = calculatePoints(prediction, fixture);
-        points += earned;
+          if (earned === 10) exact++;
+          if ([5, 7, 10].includes(earned)) correct++;
+        });
 
-        if (earned === 10) exact++;
-        if ([5, 7, 10].includes(earned)) correct++;
-      });
-
-      return {
-        ...member,
-        points,
-        exact,
-        correct,
-        guesses,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.exact - a.exact ||
-        b.correct - a.correct ||
-        b.guesses - a.guesses
-    );
-}, [members, fixtures, predictions]);
+        return {
+          ...member,
+          points,
+          exact,
+          correct,
+          guesses,
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.exact - a.exact ||
+          b.correct - a.correct ||
+          b.guesses - a.guesses
+      );
+  }, [members, fixtures, predictions]);
 
   async function createFirebaseRoom() {
     if (!isAdmin) return;
@@ -300,7 +313,12 @@ const standings = useMemo(() => {
 
       const member = existingMember
         ? existingMember
-        : await addMemberToRoom(room.id, firstName, lastName, normalizedFullName);
+        : await addMemberToRoom(
+            room.id,
+            firstName,
+            lastName,
+            normalizedFullName
+          );
 
       const joinedMember = {
         id: member.id,
@@ -336,7 +354,9 @@ const standings = useMemo(() => {
       });
 
       setFirebaseMessage(
-        existingMember ? "Welcome back. You are logged in again." : "Joined room successfully."
+        existingMember
+          ? "Welcome back. You are logged in again."
+          : "Joined room successfully."
       );
 
       setActiveTab("dashboard");
@@ -399,7 +419,7 @@ const standings = useMemo(() => {
   }
 
   async function savePrediction(fixtureId) {
-    const fixture = fixtures.find((item) => item.id === fixtureId);
+    const fixture = fixtures.find((item) => String(item.id) === String(fixtureId));
 
     if (!fixture) {
       setFirebaseMessage("Fixture not found.");
@@ -473,6 +493,45 @@ const standings = useMemo(() => {
     } catch (error) {
       console.error("Prediction save failed:", error);
       setFirebaseMessage("Prediction could not be saved.");
+    }
+  }
+
+  async function saveManualResult(fixtureId, homeScore, awayScore) {
+    if (!isAdmin) {
+      setFirebaseMessage("Only the admin can update official results.");
+      return;
+    }
+
+    if (!fixtureId && fixtureId !== 0) {
+      setFirebaseMessage("Fixture not found.");
+      return;
+    }
+
+    const home = Number(homeScore);
+    const away = Number(awayScore);
+
+    const scoresAreInvalid =
+      !Number.isInteger(home) ||
+      !Number.isInteger(away) ||
+      home < 0 ||
+      away < 0 ||
+      home > 20 ||
+      away > 20;
+
+    if (scoresAreInvalid) {
+      setFirebaseMessage("Enter valid whole-number scores between 0 and 20.");
+      return;
+    }
+
+    try {
+      await saveOfficialResultManually(fixtureId, home, away);
+
+      setFirebaseMessage(
+        "Official result saved. Standings will update automatically."
+      );
+    } catch (error) {
+      console.error("Manual result save failed:", error);
+      setFirebaseMessage("Official result could not be saved. Check Firebase rules.");
     }
   }
 
@@ -599,6 +658,7 @@ const standings = useMemo(() => {
                 roomCode={roomCode}
                 currentRoom={currentRoom}
                 fixtures={fixtures}
+                saveManualResult={saveManualResult}
               />
             )}
           </div>
