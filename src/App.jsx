@@ -598,6 +598,7 @@ const standings = useMemo(() => {
                 adminEmail={ADMIN_EMAIL}
                 roomCode={roomCode}
                 currentRoom={currentRoom}
+                fixtures={fixtures}
               />
             )}
           </div>
