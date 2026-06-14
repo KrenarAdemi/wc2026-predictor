@@ -205,6 +205,9 @@ export function subscribeToOfficialResults(callback) {
       const data = doc.data();
 
       results[doc.id] = {
+        id: doc.id,
+        apiMatchId: data.apiMatchId || doc.id,
+        fixtureId: data.fixtureId || doc.id,
         status: data.status,
         homeScore: data.homeScore,
         awayScore: data.awayScore,
@@ -232,6 +235,7 @@ export async function saveOfficialResultManually(
     doc(db, "officialResults", safeFixtureId),
     {
       apiMatchId: safeFixtureId,
+      fixtureId: safeFixtureId,
       status: "finished",
       homeScore: safeHomeScore,
       awayScore: safeAwayScore,
@@ -240,23 +244,6 @@ export async function saveOfficialResultManually(
       manualOverride: true,
       updatedBy,
       updatedAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
-
-  await setDoc(
-    doc(db, "officialMatches", safeFixtureId),
-    {
-      apiMatchId: safeFixtureId,
-      status: "FINISHED",
-      homeScore: safeHomeScore,
-      awayScore: safeAwayScore,
-      fullTimeHome: safeHomeScore,
-      fullTimeAway: safeAwayScore,
-      isFinished: true,
-      manualOverride: true,
-      updatedBy,
-      lastSyncedAt: serverTimestamp(),
     },
     { merge: true }
   );
