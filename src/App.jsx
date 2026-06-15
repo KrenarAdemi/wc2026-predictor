@@ -197,25 +197,33 @@ export default function App() {
   }, []);
 
   function getPredictionForFixture(predictions, memberId, fixture) {
-    const possibleFixtureIds = [
-      fixture.id,
-      fixture.apiMatchId,
-      fixture.matchId,
-      fixture.officialMatchId,
-    ]
-      .filter(Boolean)
-      .map(String);
+  const safeMemberId = String(memberId);
 
-    for (const fixtureId of possibleFixtureIds) {
-      const prediction = predictions[`${memberId}:${fixtureId}`];
+  const possibleFixtureIds = [
+    fixture.id,
+    fixture.apiMatchId,
+    fixture.fixtureId,
+    fixture.matchId,
+    fixture.officialMatchId,
+  ]
+    .filter(Boolean)
+    .map(String);
 
-      if (prediction) {
-        return prediction;
-      }
+  for (const fixtureId of possibleFixtureIds) {
+    const prediction = predictions[`${safeMemberId}:${fixtureId}`];
+
+    if (prediction) {
+      return prediction;
     }
-
-    return null;
   }
+
+  return Object.values(predictions).find((prediction) => {
+    return (
+      String(prediction.memberId) === safeMemberId &&
+      possibleFixtureIds.includes(String(prediction.fixtureId))
+    );
+  }) || null;
+}
 
   const standings = useMemo(() => {
     return members

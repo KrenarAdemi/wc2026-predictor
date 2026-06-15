@@ -168,12 +168,27 @@ export function subscribeToRoomPredictions(roomId, callback) {
   return onSnapshot(predictionsRef, (snapshot) => {
     const predictions = {};
 
-    snapshot.docs.forEach((doc) => {
-      const data = doc.data();
+    snapshot.docs.forEach((predictionDoc) => {
+      const data = predictionDoc.data();
 
-      predictions[`${data.memberId}:${data.fixtureId}`] = {
-        home: data.home,
-        away: data.away,
+      const [memberIdFromDocId, fixtureIdFromDocId] =
+        predictionDoc.id.split("_");
+
+      const safeMemberId =
+        data.memberId || data.memberID || memberIdFromDocId;
+
+      const safeFixtureId =
+        data.fixtureId || data.fixtureID || fixtureIdFromDocId;
+
+      if (!safeMemberId || !safeFixtureId) {
+        return;
+      }
+
+      predictions[`${String(safeMemberId)}:${String(safeFixtureId)}`] = {
+        memberId: String(safeMemberId),
+        fixtureId: String(safeFixtureId),
+        home: Number(data.home),
+        away: Number(data.away),
       };
     });
 
