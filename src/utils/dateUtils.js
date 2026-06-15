@@ -1,12 +1,13 @@
 export const DEMO_NOW = new Date("2026-06-18T18:00:00-06:00");
 
 export function isLocked(kickoff) {
-  if (!kickoff) return false;
+  const kickoffTime = new Date(kickoff).getTime();
 
-  const kickoffDate = new Date(kickoff);
-  const now = new Date();
+  if (!Number.isFinite(kickoffTime)) {
+    return true;
+  }
 
-  return now >= kickoffDate;
+  return Date.now() >= kickoffTime;
 }
 
 export function formatDate(date) {
