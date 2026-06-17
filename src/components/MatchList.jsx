@@ -140,10 +140,16 @@ export default function MatchList({
         const locked = fixture.status === "finished" || isLocked(fixture.kickoff);
         const prediction = getPrediction(predictions, currentMemberId, fixture);
 
-        const draft = draftScores[fixture.id] || prediction || {
-          home: "",
-          away: "",
-        };
+        const draftFromState = draftScores[fixture.id];
+
+      const draft =
+        draftFromState &&
+        (draftFromState.home !== "" || draftFromState.away !== "")
+          ? draftFromState
+          : prediction || {
+              home: "",
+              away: "",
+            };
 
         const points = calculatePoints(prediction, fixture);
 

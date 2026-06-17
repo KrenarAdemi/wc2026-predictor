@@ -494,6 +494,12 @@ export default function App() {
         ...currentPredictions,
         [`${currentMemberId}:${fixtureId}`]: savedPrediction,
       }));
+      
+          setDraftScores((currentDraftScores) => {
+      const updatedDraftScores = { ...currentDraftScores };
+      delete updatedDraftScores[fixtureId];
+      return updatedDraftScores;
+    });
 
       setFirebaseMessage(
         alreadyPredicted ? "Prediction updated." : "Prediction saved."
