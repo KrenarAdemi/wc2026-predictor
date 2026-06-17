@@ -4,6 +4,27 @@ import { Lock, CheckCircle2 } from "lucide-react";
 import { calculatePoints } from "../utils/scoring";
 import { isLocked, formatDate } from "../utils/dateUtils";
 
+function getPrediction(predictions, currentMemberId, fixture) {
+  const possibleIds = [
+    fixture.id,
+    fixture.apiMatchId,
+    fixture.matchId,
+    fixture.officialMatchId,
+  ]
+    .filter(Boolean)
+    .map(String);
+
+  for (const id of possibleIds) {
+    const prediction = predictions[`${currentMemberId}:${id}`];
+
+    if (prediction) {
+      return prediction;
+    }
+  }
+
+  return null;
+}
+
 export default function MatchList({
   fixtures,
   predictions,
@@ -17,8 +38,8 @@ export default function MatchList({
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredFixtures = fixtures.filter((fixture) => {
-    const locked = isLocked(fixture.kickoff);
-    const prediction = predictions[`${currentMemberId}:${fixture.id}`];
+    const locked = fixture.status === "finished" || isLocked(fixture.kickoff);
+    const prediction = getPrediction(predictions, currentMemberId, fixture);
 
     const searchValue = searchTerm.trim().toLowerCase();
 
@@ -44,7 +65,7 @@ export default function MatchList({
 
           {showControls && (
             <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
-                      <button
+              <button
                 onClick={() => setActiveFilter("all")}
                 className={`rounded-lg px-3 py-2 text-xs ${
                   activeFilter === "all"
@@ -83,27 +104,27 @@ export default function MatchList({
         {showControls && (
           <>
             <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
-            <input
+              <input
                 type="search"
                 placeholder="Search team, group, or city..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="w-full rounded-xl border border-slate-700 bg-[#0d1324] px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400"
-            />
+              />
 
-            <button
+              <button
                 onClick={() => {
-                setSearchTerm("");
-                setActiveFilter("all");
+                  setSearchTerm("");
+                  setActiveFilter("all");
                 }}
                 className="rounded-xl border border-slate-700 bg-slate-700 px-4 py-3 text-sm text-slate-200 hover:bg-slate-600"
-            >
+              >
                 Reset
-            </button>
+              </button>
             </div>
 
             <p className="mt-3 text-xs text-slate-400">
-            Showing {filteredFixtures.length} of {fixtures.length} matches
+              Showing {filteredFixtures.length} of {fixtures.length} matches
             </p>
           </>
         )}
@@ -116,8 +137,15 @@ export default function MatchList({
       )}
 
       {filteredFixtures.map((fixture) => {
-        const locked = isLocked(fixture.kickoff);
-        const prediction = predictions[`${currentMemberId}:${fixture.id}`];
+        const locked = fixture.status === "finished" || isLocked(fixture.kickoff);
+        const prediction = getPrediction(predictions, currentMemberId, fixture);
+
+        const draft = draftScores[fixture.id] || prediction || {
+          home: "",
+          away: "",
+        };
+
+        const points = calculatePoints(prediction, fixture);
 
         const matchStatusLabel =
           fixture.status === "finished"
@@ -133,17 +161,20 @@ export default function MatchList({
               ? "border-rose-400/30 bg-rose-400/10 text-rose-300"
               : "border-cyan-400/30 bg-cyan-400/10 text-cyan-300";
 
-        const draft = draftScores[fixture.id] || prediction || {
-          home: "",
-          away: "",
-        };
-
-        const points = calculatePoints(prediction, fixture);
+        function updateDraftScore(field, value) {
+          setDraftScores({
+            ...draftScores,
+            [fixture.id]: {
+              ...draft,
+              [field]: value,
+            },
+          });
+        }
 
         return (
           <div
             key={fixture.id}
-className="grid gap-4 border-b border-slate-700 px-4 py-5 sm:px-5 md:grid-cols-[1fr_240px_1fr] md:items-center"
+            className="grid gap-4 border-b border-slate-700 px-4 py-5 sm:px-5 md:grid-cols-[1fr_240px_1fr] md:items-center"
           >
             <div>
               <p className="text-xs text-slate-400">
@@ -171,13 +202,7 @@ className="grid gap-4 border-b border-slate-700 px-4 py-5 sm:px-5 md:grid-cols-[
                   step="1"
                   value={draft.home}
                   onChange={(event) =>
-                    setDraftScores({
-                      ...draftScores,
-                      [fixture.id]: {
-                        ...draft,
-                        home: event.target.value,
-                      },
-                    })
+                    updateDraftScore("home", event.target.value)
                   }
                   className="h-9 w-12 rounded-lg border border-slate-700 bg-[#0d1324] text-center outline-none disabled:opacity-40"
                 />
@@ -192,13 +217,7 @@ className="grid gap-4 border-b border-slate-700 px-4 py-5 sm:px-5 md:grid-cols-[
                   step="1"
                   value={draft.away}
                   onChange={(event) =>
-                    setDraftScores({
-                      ...draftScores,
-                      [fixture.id]: {
-                        ...draft,
-                        away: event.target.value,
-                      },
-                    })
+                    updateDraftScore("away", event.target.value)
                   }
                   className="h-9 w-12 rounded-lg border border-slate-700 bg-[#0d1324] text-center outline-none disabled:opacity-40"
                 />

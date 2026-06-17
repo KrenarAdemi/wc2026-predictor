@@ -1,5 +1,3 @@
-export const DEMO_NOW = new Date("2026-06-18T18:00:00-06:00");
-
 export function isLocked(kickoff) {
   const kickoffTime = new Date(kickoff).getTime();
 
@@ -10,10 +8,14 @@ export function isLocked(kickoff) {
   return Date.now() >= kickoffTime;
 }
 
-export function formatDate(date) {
-  if (!date) return "TBD";
+export function formatDate(dateValue) {
+  const date = new Date(dateValue);
 
-  return new Date(date).toLocaleString("en-US", {
+  if (!Number.isFinite(date.getTime())) {
+    return "TBD";
+  }
+
+  return date.toLocaleString([], {
     month: "short",
     day: "numeric",
     hour: "numeric",

@@ -427,17 +427,17 @@ export default function App() {
   }
 
   async function savePrediction(fixtureId) {
-    const fixture = fixtures.find((item) => String(item.id) === String(fixtureId));
+  const fixture = fixtures.find((item) => String(item.id) === String(fixtureId));
 
-    if (!fixture) {
-      setFirebaseMessage("Fixture not found.");
-      return;
-    }
+  if (!fixture) {
+    setFirebaseMessage("Fixture not found.");
+    return;
+  }
 
-    if (isLocked(fixture.kickoff)) {
-      setFirebaseMessage("This match is locked. You can no longer predict it.");
-      return;
-    }
+  if (fixture.status === "finished" || isLocked(fixture.kickoff)) {
+    setFirebaseMessage("This match is locked. You can no longer predict it.");
+    return;
+  }
 
     const draft = draftScores[fixtureId];
 
