@@ -270,3 +270,37 @@ export async function saveOfficialResultManually(
     status: "finished",
   };
 }
+
+export async function getOfficialMatchesOnce() {
+  const matchesRef = collection(db, "officialMatches");
+  const matchesQuery = query(matchesRef, orderBy("utcDate", "asc"));
+
+  const snapshot = await getDocs(matchesQuery);
+
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+}
+
+export async function getOfficialResultsOnce() {
+  const resultsRef = collection(db, "officialResults");
+  const snapshot = await getDocs(resultsRef);
+
+  const results = {};
+
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+
+    results[doc.id] = {
+      status: data.status,
+      homeScore: data.homeScore,
+      awayScore: data.awayScore,
+      fullTimeHome: data.fullTimeHome,
+      fullTimeAway: data.fullTimeAway,
+      manualOverride: data.manualOverride || false,
+    };
+  });
+
+  return results;
+}

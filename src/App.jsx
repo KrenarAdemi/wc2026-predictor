@@ -25,11 +25,10 @@ import {
   subscribeToRoomMembers,
   savePredictionToFirestore,
   subscribeToRoomPredictions,
-  subscribeToOfficialMatches,
-  subscribeToOfficialResults,
   findMemberByNameInRoom,
   deleteMemberFromRoom,
-  saveOfficialResultManually,
+  getOfficialMatchesOnce,
+  getOfficialResultsOnce,
 } from "./firebase/firestoreService";
 
 const ADMIN_EMAIL = "krenar.ademi3@gmail.com";
@@ -180,21 +179,28 @@ export default function App() {
     return () => unsubscribe();
   }, [currentRoom?.id]);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToOfficialMatches((matches) => {
-      setOfficialMatches(matches);
-    });
+  async function refreshOfficialData() {
+  try {
+    const [matches, results] = await Promise.all([
+      getOfficialMatchesOnce(),
+      getOfficialResultsOnce(),
+    ]);
 
-    return () => unsubscribe();
-  }, []);
+    setOfficialMatches(matches);
+    setOfficialResults(results);
+  } catch (error) {
+    console.error("Official data refresh failed:", error);
+    setFirebaseMessage("Could not refresh official match data.");
+  }
+}
 
-  useEffect(() => {
-    const unsubscribe = subscribeToOfficialResults((results) => {
-      setOfficialResults(results);
-    });
+useEffect(() => {
+  async function loadOfficialData() {
+    await refreshOfficialData();
+  }
 
-    return () => unsubscribe();
-  }, []);
+  loadOfficialData();
+}, []);
 
   function getPredictionForFixture(predictions, memberId, fixture) {
   const safeMemberId = String(memberId);
@@ -494,7 +500,7 @@ export default function App() {
         ...currentPredictions,
         [`${currentMemberId}:${fixtureId}`]: savedPrediction,
       }));
-      
+
           setDraftScores((currentDraftScores) => {
       const updatedDraftScores = { ...currentDraftScores };
       delete updatedDraftScores[fixtureId];
