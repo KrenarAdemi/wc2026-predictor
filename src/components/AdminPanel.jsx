@@ -7,6 +7,7 @@ export default function AdminPanel({
   currentRoom,
   fixtures = [],
   saveManualResult,
+  refreshOfficialData,
 }) {
   const roomAlreadyCreated = Boolean(currentRoom?.id);
 

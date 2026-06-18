@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Dashboard from "./pages/Dashboard";
 import FixturesPage from "./pages/FixturesPage";
@@ -29,6 +29,9 @@ import {
   deleteMemberFromRoom,
   getOfficialMatchesOnce,
   getOfficialResultsOnce,
+  saveOfficialResultManually,
+  subscribeToOfficialMatches,
+  subscribeToOfficialResults,
 } from "./firebase/firestoreService";
 
 const ADMIN_EMAIL = "krenar.ademi3@gmail.com";
@@ -195,11 +198,18 @@ export default function App() {
 }
 
 useEffect(() => {
-  async function loadOfficialData() {
-    await refreshOfficialData();
-  }
+  const unsubscribeMatches = subscribeToOfficialMatches((matches) => {
+    setOfficialMatches(matches);
+  });
 
-  loadOfficialData();
+  const unsubscribeResults = subscribeToOfficialResults((results) => {
+    setOfficialResults(results);
+  });
+
+  return () => {
+    unsubscribeMatches();
+    unsubscribeResults();
+  };
 }, []);
 
   function getPredictionForFixture(predictions, memberId, fixture) {
@@ -517,43 +527,96 @@ useEffect(() => {
   }
 
   async function saveManualResult(fixtureId, homeScore, awayScore) {
-    if (!isAdmin) {
-      setFirebaseMessage("Only the admin can update official results.");
-      return;
-    }
-
-    if (!fixtureId && fixtureId !== 0) {
-      setFirebaseMessage("Fixture not found.");
-      return;
-    }
-
-    const home = Number(homeScore);
-    const away = Number(awayScore);
-
-    const scoresAreInvalid =
-      !Number.isInteger(home) ||
-      !Number.isInteger(away) ||
-      home < 0 ||
-      away < 0 ||
-      home > 20 ||
-      away > 20;
-
-    if (scoresAreInvalid) {
-      setFirebaseMessage("Enter valid whole-number scores between 0 and 20.");
-      return;
-    }
-
-    try {
-      await saveOfficialResultManually(fixtureId, home, away);
-
-      setFirebaseMessage(
-        "Official result saved. Standings will update automatically."
-      );
-    } catch (error) {
-      console.error("Manual result save failed:", error);
-      setFirebaseMessage("Official result could not be saved. Check Firebase rules.");
-    }
+  if (!isAdmin) {
+    setFirebaseMessage("Only the admin can update official results.");
+    return;
   }
+
+  if (!fixtureId && fixtureId !== 0) {
+    setFirebaseMessage("Fixture not found.");
+    return;
+  }
+
+  const safeFixtureId = String(fixtureId);
+  const home = Number(homeScore);
+  const away = Number(awayScore);
+
+  const scoresAreInvalid =
+    !Number.isInteger(home) ||
+    !Number.isInteger(away) ||
+    home < 0 ||
+    away < 0 ||
+    home > 20 ||
+    away > 20;
+
+  if (scoresAreInvalid) {
+    setFirebaseMessage("Enter valid whole-number scores between 0 and 20.");
+    return;
+  }
+
+  try {
+    await saveOfficialResultManually(safeFixtureId, home, away);
+
+    setOfficialResults((currentResults) => ({
+      ...currentResults,
+      [safeFixtureId]: {
+        ...(currentResults[safeFixtureId] || {}),
+        id: safeFixtureId,
+        apiMatchId: safeFixtureId,
+        fixtureId: safeFixtureId,
+        status: "finished",
+        homeScore: home,
+        awayScore: away,
+        fullTimeHome: home,
+        fullTimeAway: away,
+        manualOverride: true,
+      },
+    }));
+
+    setOfficialMatches((currentMatches) =>
+      currentMatches.map((match) => {
+        const possibleIds = [
+          match.id,
+          match.fixtureId,
+          match.apiMatchId,
+          match.matchId,
+          match.officialMatchId,
+        ]
+          .filter(Boolean)
+          .map(String);
+
+        if (!possibleIds.includes(safeFixtureId)) {
+          return match;
+        }
+
+        return {
+          ...match,
+          status: "finished",
+          homeScore: home,
+          awayScore: away,
+          fullTimeHome: home,
+          fullTimeAway: away,
+          score: {
+            ...(match.score || {}),
+            fullTime: {
+              home,
+              away,
+            },
+          },
+        };
+      })
+    );
+
+    setFirebaseMessage(
+      "Official result saved. Standings will update automatically."
+    );
+  } catch (error) {
+    console.error("Manual result save failed:", error);
+    setFirebaseMessage(
+      "Official result could not be saved. Check Firebase rules."
+    );
+  }
+}
 
   function continueAsHost() {
     const savedHostSession = loadHostSession();
