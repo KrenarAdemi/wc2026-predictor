@@ -101,7 +101,7 @@ export function mapOfficialMatchesToFixtures(officialMatches, officialResults) {
   const hasOfficialMatches =
     Array.isArray(officialMatches) && officialMatches.length > 0;
 
-  const sourceFixtures = hasOfficialMatches ? officialMatches : initialFixtures;
+  const sourceFixtures = hasOfficialMatches ? officialMatches : [];
 
   return sourceFixtures
     .map((match, index) => mapOneFixture(match, index, officialResults))
